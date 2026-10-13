@@ -24,7 +24,7 @@ Project: Perancangan dan Pengembangan Portal Digital Teknik Informatika UNUSIA B
 - [x] Menginstal express, cors, dotenv, dan mysql2
 - [x] Mengatur backend menggunakan ES Modules
 - [x] Menginstal dan menjalankan MySQL Server secara mandiri
-- [x] Membuat database portal_ti_unusia
+- [x] Membuat database web_ti_unusia
 - [x] Menjalankan backend pada port 3000
 - [x] Membuat endpoint GET /api/health
 - [x] Membuat endpoint GET /api/db-test
@@ -289,12 +289,12 @@ Gunakan JWT atau mekanisme lain yang dipilih secara sadar setelah menilai kebutu
 
 ### 7.1 Git
 
-- [ ] Menginisialisasi atau memeriksa repository Git
-- [ ] Memeriksa .gitignore
-- [ ] Memastikan .env tidak terlacak
-- [ ] Membuat commit berdasarkan fitur
-- [ ] Menyinkronkan repository dengan GitHub
-- [ ] Memeriksa repository sebelum dibagikan
+- [x] Menginisialisasi atau memeriksa repository Git
+- [x] Memeriksa .gitignore
+- [x] Memastikan .env tidak terlacak
+- [x] Membuat commit berdasarkan fitur
+- [x] Menyinkronkan repository dengan GitHub
+- [x] Memeriksa repository sebelum dibagikan
 
 ### 7.2 Documentation
 

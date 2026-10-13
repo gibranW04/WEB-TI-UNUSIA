@@ -56,7 +56,7 @@ Struktur di atas merupakan struktur target. Sesuaikan dengan file aktual saat pe
 ## Database Setup
 
 1. Pastikan service MySQL berjalan.
-2. Buat database bernama `portal_ti_unusia`.
+2. Buat database bernama `web_ti_unusia`.
 3. Atur kredensial database melalui `backend/.env`.
 4. Jalankan skrip pembuatan tabel setelah skema database tersedia.
 

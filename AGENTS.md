@@ -77,7 +77,7 @@ Folder backend:
 - Endpoint GET /api/db-test sudah dibuat untuk menguji koneksi database.
 
 Database:
-- Nama database: portal_ti_unusia.
+- Nama database: web_ti_unusia.
 - MySQL Server berjalan sebagai service Windows.
 - Kredensial harus dibaca dari environment variables.
 
@@ -221,7 +221,7 @@ Sesuaikan bentuk response dengan kebutuhan endpoint, tetapi jaga konsistensi.
 
 ## 10. Database Standards
 
-- Gunakan database portal_ti_unusia.
+- Gunakan database web_ti_unusia.
 - Gunakan InnoDB dan foreign key jika sesuai.
 - Tentukan primary key untuk setiap tabel.
 - Tentukan relasi antar tabel secara jelas.
@@ -246,7 +246,7 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=
-DB_NAME=portal_ti_unusia
+DB_NAME=web_ti_unusia
 
 Nilai di atas merupakan contoh konfigurasi, bukan kredensial yang harus digunakan secara literal.
 
