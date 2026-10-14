@@ -259,38 +259,46 @@ Catatan: seluruh endpoint berada di bawah `/api/admin`, dilindungi `authenticate
 
 ### 6.1 Functional Testing
 
-- [ ] Menguji endpoint health
-- [ ] Menguji koneksi database
-- [ ] Menguji CRUD informasi publik
+- [x] Menguji endpoint health
+- [x] Menguji koneksi database
+- [x] Menguji CRUD informasi publik
 - [ ] Menguji login dan logout
-- [ ] Menguji akses mahasiswa
-- [ ] Menguji akses dosen
-- [ ] Menguji akses admin
-- [ ] Menguji alur pengajuan layanan
-- [ ] Menguji alur revisi dan persetujuan
-- [ ] Menguji validasi input
+- [x] Menguji akses mahasiswa
+- [x] Menguji akses dosen
+- [x] Menguji akses admin
+- [x] Menguji alur pengajuan layanan
+- [x] Menguji alur revisi dan persetujuan
+- [x] Menguji validasi input
+
+Catatan: pengujian fungsional otomatis tersedia di `backend/tests/run-tests.js` (jalankan `npm test` dari folder backend; server harus aktif dan database sudah di-seed). Hasil terakhir: 79 PASS / 0 FAIL. Item login sudah diuji, namun logout belum diuji karena logout bersifat sisi-klien dan belum ada endpoint logout di backend.
 
 ### 6.2 Security Checks
 
-- [ ] Memastikan password di-hash
-- [ ] Memastikan query menggunakan parameter
-- [ ] Memastikan endpoint privat membutuhkan autentikasi
-- [ ] Memastikan otorisasi diperiksa di backend
-- [ ] Memastikan pengguna tidak dapat melihat data pengguna lain tanpa izin
-- [ ] Memvalidasi tipe dan ukuran file
-- [ ] Memeriksa CORS
-- [ ] Memastikan secret tidak terunggah ke GitHub
-- [ ] Memeriksa pesan error agar tidak membocorkan detail internal
+- [x] Memastikan password di-hash
+- [x] Memastikan query menggunakan parameter
+- [x] Memastikan endpoint privat membutuhkan autentikasi
+- [x] Memastikan otorisasi diperiksa di backend
+- [x] Memastikan pengguna tidak dapat melihat data pengguna lain tanpa izin
+- [x] Memvalidasi tipe dan ukuran file
+- [x] Memeriksa CORS
+- [x] Memastikan secret tidak terunggah ke GitHub
+- [x] Memeriksa pesan error agar tidak membocorkan detail internal
+
+Catatan audit dan perbaikan: otorisasi dosen diperketat (hanya pengajuan dengan `reviewer_id` miliknya), syarat akademik (SKS/semester) ditegakkan saat pengajuan, rate limiting login ditambahkan (`middleware/rateLimit.js`), nomor pengajuan memakai retry anti-tabrakan, transisi status review divalidasi, dan berkas unggahan yang gagal diproses kini dibersihkan (mencegah berkas yatim). Catatan keamanan: password default seed `Password123!` beserta hash-nya berada di `database/seed.sql`; wajib diganti sebelum penggunaan produksi.
 
 ### 6.3 Quality Checks
 
 - [ ] Memeriksa console browser
-- [ ] Memeriksa log backend
-- [ ] Memastikan tidak ada import yang rusak
-- [ ] Menjalankan build frontend
-- [ ] Menjalankan tes backend yang tersedia
+- [x] Memeriksa log backend
+- [x] Memastikan tidak ada import yang rusak
+- [x] Menjalankan build frontend
+- [x] Menjalankan tes backend yang tersedia
 - [ ] Menguji tampilan responsif
-- [ ] Memperbaiki bug prioritas tinggi
+- [x] Memperbaiki bug prioritas tinggi
+
+Catatan: `npm run build` dan `npm run lint` (oxlint) di frontend berhasil. Pemeriksaan console browser dan pengujian tampilan responsif ditunda ke Phase 5 agar tidak diuji dua kali setelah integrasi frontend.
+
+Catatan tindak lanjut: belum ada mekanisme penugasan reviewer (endpoint admin untuk menetapkan `reviewer_id` atau aksi "ambil tugas" oleh dosen). Karena dosen kini hanya mengakses pengajuan yang ditugaskan, mekanisme ini perlu dibuat sebelum dashboard dosen pada Phase 5.
 
 ---
 
