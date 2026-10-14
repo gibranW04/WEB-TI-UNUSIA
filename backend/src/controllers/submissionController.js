@@ -1,4 +1,9 @@
 ﻿import pool from '../db.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export const getSubmissions = async (req, res) => {
   try {
@@ -251,3 +256,184 @@ export const createReview = async (req, res) => {
     });
   }
 };
+
+export const uploadSubmissionDocument = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { document_type } = req.body;
+    const userId = req.user.id;
+
+    const validDocumentTypes = [
+      'proposal',
+      'surat_pengantar',
+      'logbook',
+      'laporan',
+      'bukti_acc',
+      'lainnya',
+    ];
+
+    if (!document_type || !validDocumentTypes.includes(document_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Jenis dokumen wajib diisi dan harus sesuai (proposal, surat_pengantar, logbook, laporan, bukti_acc, lainnya).',
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'File dokumen wajib diunggah. Hanya diperbolehkan PDF, DOC, DOCX, JPG, JPEG, PNG dengan ukuran maksimal 5MB.',
+      });
+    }
+
+    const [submissionRows] = await pool.query(
+      `SELECT id, student_id, status 
+       FROM submissions 
+       WHERE id = ?`,
+      [id]
+    );
+
+    if (submissionRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pengajuan tidak ditemukan',
+      });
+    }
+
+    const submission = submissionRows[0];
+
+    if (req.user.role === 'mahasiswa' && submission.student_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak: Anda tidak memiliki izin mengunggah dokumen untuk pengajuan ini',
+      });
+    }
+
+    const [existingVersion] = await pool.query(
+      `SELECT MAX(version) as max_version 
+       FROM submission_documents 
+       WHERE submission_id = ? AND document_type = ?`,
+      [id, document_type]
+    );
+
+    const nextVersion = existingVersion[0].max_version ? existingVersion[0].max_version + 1 : 1;
+
+    const filePath = req.file.path;
+    const relativePath = pathRelative(filePath);
+
+    await pool.query(
+      `INSERT INTO submission_documents 
+       (submission_id, document_type, file_name, file_path, file_size, mime_type, version) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        document_type,
+        req.file.originalname,
+        relativePath,
+        req.file.size,
+        req.file.mimetype,
+        nextVersion,
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Dokumen berhasil diunggah dan tersimpan',
+      data: {
+        submission_id: Number(id),
+        document_type,
+        file_name: req.file.originalname,
+        file_size: req.file.size,
+        mime_type: req.file.mimetype,
+        version: nextVersion,
+      },
+    });
+  } catch (error) {
+    console.error('Upload submission document error:', error.message);
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Ukuran file melebihi batas maksimum 5MB',
+      });
+    }
+    next(error);
+  }
+};
+
+export const downloadSubmissionDocument = async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const { role, id: userId } = req.user;
+
+    const [submissionRows] = await pool.query(
+      'SELECT id, student_id FROM submissions WHERE id = ?',
+      [id]
+    );
+
+    if (submissionRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pengajuan tidak ditemukan',
+      });
+    }
+
+    if (role === 'mahasiswa' && submissionRows[0].student_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak: Anda tidak memiliki izin mengunduh berkas ini',
+      });
+    }
+
+    const [docRows] = await pool.query(
+      'SELECT id, file_name, file_path FROM submission_documents WHERE id = ? AND submission_id = ?',
+      [docId, id]
+    );
+
+    if (docRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Dokumen tidak ditemukan',
+      });
+    }
+
+    const doc = docRows[0];
+    const uploadsBase = path.resolve(__dirname, '../../uploads');
+    const absolutePath = path.resolve(__dirname, '../../', doc.file_path);
+
+    if (absolutePath !== uploadsBase && !absolutePath.startsWith(uploadsBase + path.sep)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Lokasi berkas tidak valid',
+      });
+    }
+
+    return res.download(absolutePath, doc.file_name, (error) => {
+      if (error && !res.headersSent) {
+        res.status(404).json({
+          success: false,
+          message: 'Berkas tidak ditemukan pada server',
+        });
+      }
+    });
+  } catch (error) {
+    console.error('Download submission document error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mengunduh dokumen pengajuan',
+    });
+  }
+};
+
+function pathRelative(filePath) {
+  try {
+    const normalized = filePath.replace(/\\/g, '/');
+    const uploadsIndex = normalized.indexOf('/uploads/');
+    if (uploadsIndex !== -1) {
+      return normalized.substring(uploadsIndex + 1);
+    }
+    return normalized;
+  } catch {
+    return filePath;
+  }
+}
+

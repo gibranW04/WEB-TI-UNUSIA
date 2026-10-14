@@ -7,6 +7,7 @@ import authRoutes from "./routes/authRoutes.js";
 import serviceRoutes from "./routes/serviceRoutes.js";
 import announcementRoutes from "./routes/announcementRoutes.js";
 import submissionRoutes from "./routes/submissionRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 
 dotenv.config();
@@ -62,6 +63,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/academic-services", serviceRoutes);
 app.use("/api/announcements", announcementRoutes);
 app.use("/api/submissions", submissionRoutes);
+app.use("/api/admin", adminRoutes);
 
 // 404 & Error Handling
 app.use(notFoundHandler);

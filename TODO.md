@@ -150,10 +150,12 @@ Peringatan: jangan menghapus atau mereset database yang sudah ada tanpa persetuj
 - [ ] Endpoint informasi profil program studi
 - [ ] Endpoint informasi kurikulum jika diperlukan
 
+Catatan: berdasarkan keputusan pengguna, informasi profil program studi, kurikulum, dan dosen disajikan sebagai placeholder statis di frontend (mudah diganti) tanpa penambahan tabel database. Item di atas tidak dibuat sebagai endpoint pada tahap ini.
+
 ### 4.3 Authentication and Authorization
 
 - [x] Menentukan mekanisme autentikasi
-- [ ] Membuat endpoint registrasi jika diperlukan
+- [x] Membuat endpoint registrasi jika diperlukan
 - [x] Membuat endpoint login
 - [x] Melakukan hashing password
 - [x] Membuat middleware autentikasi
@@ -161,6 +163,8 @@ Peringatan: jangan menghapus atau mereset database yang sudah ada tanpa persetuj
 - [x] Membuat endpoint profil pengguna
 - [x] Menguji akses untuk setiap peran
 - [x] Menangani token kedaluwarsa dan akses tidak sah
+
+Catatan: berdasarkan keputusan pengguna, registrasi mandiri tidak diaktifkan. Akun mahasiswa, dosen, dan admin dikelola oleh admin untuk menghindari pendaftaran publik yang berisiko; item registrasi ditandai selesai karena keputusan telah diambil (tidak diperlukan).
 
 Gunakan JWT atau mekanisme lain yang dipilih secara sadar setelah menilai kebutuhan. Jangan menyimpan password dalam plaintext.
 
@@ -171,21 +175,26 @@ Gunakan JWT atau mekanisme lain yang dipilih secara sadar setelah menilai kebutu
 - [x] Endpoint pengajuan KKN
 - [x] Endpoint daftar pengajuan milik mahasiswa
 - [x] Endpoint detail pengajuan
-- [ ] Endpoint unggah dokumen
+- [x] Endpoint unggah dokumen
+- [x] Endpoint unduh dokumen (terautentikasi, cek kepemilikan/peran)
 - [x] Endpoint status dan catatan revisi
 - [x] Endpoint peninjauan oleh dosen
 - [x] Endpoint persetujuan atau penolakan
 - [x] Validasi akses terhadap setiap pengajuan
-- [ ] Validasi file yang diunggah
+- [x] Validasi file yang diunggah
+
+Catatan: validasi unggahan mencakup batas tipe (PDF/DOC/DOCX/JPG/JPEG/PNG), batas ukuran 5MB, serta pemeriksaan magic-byte isi berkas. Dokumen disajikan melalui endpoint terautentikasi, bukan folder statis publik, untuk mencegah kebocoran berkas.
 
 ### 4.5 Admin API
 
-- [ ] CRUD berita dan pengumuman
-- [ ] CRUD informasi layanan
-- [ ] Pengelolaan pengguna
-- [ ] Pengelolaan peran pengguna
-- [ ] Pemantauan pengajuan
-- [ ] Validasi hak akses admin
+- [x] CRUD berita dan pengumuman
+- [x] CRUD informasi layanan
+- [x] Pengelolaan pengguna
+- [x] Pengelolaan peran pengguna
+- [x] Pemantauan pengajuan
+- [x] Validasi hak akses admin
+
+Catatan: seluruh endpoint berada di bawah `/api/admin`, dilindungi `authenticateToken` + `authorizeRoles('admin')`. Penghapusan pengguna tidak disediakan (menggunakan perubahan status) untuk menjaga integritas data pengajuan. Pengujian: login admin, CRUD berita/layanan, perubahan status & peran, pemantauan pengajuan, serta respons 401 (tanpa token) dan 403 (mahasiswa) telah berhasil.
 
 ---
 
