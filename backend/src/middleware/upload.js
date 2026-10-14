@@ -107,7 +107,11 @@ export const validateFileSignature = (req, res, next) => {
   const actualSignature = buffer.toString('hex').toUpperCase();
 
   if (!actualSignature.startsWith(expectedSignature)) {
-    fs.unlink(req.file.path, () => {});
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch {
+      // berkas mungkin sudah terhapus; abaikan
+    }
     return res.status(400).json({
       success: false,
       message: 'Isi berkas tidak sesuai dengan tipe yang diizinkan',

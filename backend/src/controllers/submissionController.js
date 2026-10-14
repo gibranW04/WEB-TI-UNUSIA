@@ -1,5 +1,6 @@
 ﻿import pool from '../db.js';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,7 +26,7 @@ export const getSubmissions = async (req, res) => {
       sql += ' WHERE s.student_id = ?';
       params.push(userId);
     } else if (role === 'dosen') {
-      sql += ' WHERE s.reviewer_id = ? OR s.status IN ("submitted", "in_review")';
+      sql += ' WHERE s.reviewer_id = ?';
       params.push(userId);
     }
 
@@ -85,6 +86,13 @@ export const getSubmissionById = async (req, res) => {
       });
     }
 
+    if (role === 'dosen' && submission.reviewer_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak: pengajuan ini tidak ditugaskan kepada Anda',
+      });
+    }
+
     // Ambil dokumen lampiran
     const [documents] = await pool.query(
       `SELECT id, document_type, file_name, file_size, mime_type, version, uploaded_at 
@@ -136,7 +144,7 @@ export const createSubmission = async (req, res) => {
 
     // Ambil service_id
     const [svcRows] = await pool.query(
-      'SELECT id, code, name FROM academic_services WHERE code = ? AND is_active = 1',
+      'SELECT id, code, name, min_credits, min_semester FROM academic_services WHERE code = ? AND is_active = 1',
       [service_code]
     );
 
@@ -148,31 +156,81 @@ export const createSubmission = async (req, res) => {
     }
 
     const service = svcRows[0];
-    const year = new Date().getFullYear();
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const codePrefix = service.code.slice(0, 2).toUpperCase();
-    const submissionNumber = `SUB-${codePrefix}-${year}-${randomSuffix}`;
 
-    const [result] = await pool.query(
-      `INSERT INTO submissions 
-       (submission_number, service_id, student_id, title, agency_name, agency_address, notes, status, current_step) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'submitted', 1)`,
-      [
-        submissionNumber,
-        service.id,
-        studentId,
-        title.trim(),
-        agency_name ? agency_name.trim() : null,
-        agency_address ? agency_address.trim() : null,
-        notes ? notes.trim() : null,
-      ]
+    // Validasi pemenuhan syarat akademik pengaju
+    const [profileRows] = await pool.query(
+      'SELECT total_credits, semester FROM user_profiles WHERE user_id = ?',
+      [studentId]
     );
+
+    if (profileRows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Profil akademik Anda belum lengkap. Hubungi admin untuk melengkapi data SKS dan semester sebelum mengajukan layanan.',
+      });
+    }
+
+    const studentProfile = profileRows[0];
+    const totalCredits = studentProfile.total_credits ?? 0;
+    const currentSemester = studentProfile.semester ?? 0;
+    const minCredits = service.min_credits ?? 0;
+    const minSemester = service.min_semester ?? 1;
+
+    if (totalCredits < minCredits || currentSemester < minSemester) {
+      return res.status(403).json({
+        success: false,
+        message: `Syarat layanan '${service.name}' belum terpenuhi. Dibutuhkan minimal ${minCredits} SKS dan semester ${minSemester}. SKS Anda: ${totalCredits}, semester Anda: ${currentSemester}.`,
+      });
+    }
+
+    const year = new Date().getFullYear();
+    const codePrefix = service.code.slice(0, 2).toUpperCase();
+
+    let submissionNumber = null;
+    let insertResult = null;
+
+    // Coba beberapa kali jika terjadi tabrakan nomor pengajuan (ER_DUP_ENTRY)
+    for (let attempt = 0; attempt < 5 && !insertResult; attempt += 1) {
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const candidateNumber = `SUB-${codePrefix}-${year}-${randomSuffix}`;
+
+      try {
+        const [result] = await pool.query(
+          `INSERT INTO submissions 
+           (submission_number, service_id, student_id, title, agency_name, agency_address, notes, status, current_step) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'submitted', 1)`,
+          [
+            candidateNumber,
+            service.id,
+            studentId,
+            title.trim(),
+            agency_name ? agency_name.trim() : null,
+            agency_address ? agency_address.trim() : null,
+            notes ? notes.trim() : null,
+          ]
+        );
+
+        submissionNumber = candidateNumber;
+        insertResult = result;
+      } catch (error) {
+        if (error.code !== 'ER_DUP_ENTRY') {
+          throw error;
+        }
+      }
+    }
+
+    if (!insertResult) {
+      return res.status(500).json({
+        success: false,
+        message: 'Gagal membuat nomor pengajuan yang unik. Silakan coba kembali.',
+      });
+    }
 
     res.status(201).json({
       success: true,
       message: 'Pengajuan berkas akademik berhasil dibuat',
       data: {
-        id: result.insertId,
+        id: insertResult.insertId,
         submission_number: submissionNumber,
         service_name: service.name,
         status: 'submitted',
@@ -202,7 +260,7 @@ export const createReview = async (req, res) => {
     }
 
     // Periksa keberadaan submission
-    const [subRows] = await pool.query('SELECT id, status, current_step FROM submissions WHERE id = ?', [id]);
+    const [subRows] = await pool.query('SELECT id, status, current_step, reviewer_id FROM submissions WHERE id = ?', [id]);
     if (subRows.length === 0) {
       return res.status(404).json({
         success: false,
@@ -211,6 +269,23 @@ export const createReview = async (req, res) => {
     }
 
     const currentSub = subRows[0];
+
+    // Otorisasi: dosen hanya dapat meninjau pengajuan yang ditugaskan kepadanya
+    if (req.user.role === 'dosen' && currentSub.reviewer_id !== reviewerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak: pengajuan ini tidak ditugaskan kepada Anda',
+      });
+    }
+
+    // Cegah peninjauan ulang pada pengajuan yang sudah final
+    const terminalStatuses = ['rejected', 'completed'];
+    if (terminalStatuses.includes(currentSub.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Pengajuan dengan status '${currentSub.status}' tidak dapat ditinjau lagi`,
+      });
+    }
 
     // Simpan review
     await pool.query(
@@ -273,6 +348,7 @@ export const uploadSubmissionDocument = async (req, res, next) => {
     ];
 
     if (!document_type || !validDocumentTypes.includes(document_type)) {
+      removeUploadedFile(req.file);
       return res.status(400).json({
         success: false,
         message: 'Jenis dokumen wajib diisi dan harus sesuai (proposal, surat_pengantar, logbook, laporan, bukti_acc, lainnya).',
@@ -294,6 +370,7 @@ export const uploadSubmissionDocument = async (req, res, next) => {
     );
 
     if (submissionRows.length === 0) {
+      removeUploadedFile(req.file);
       return res.status(404).json({
         success: false,
         message: 'Pengajuan tidak ditemukan',
@@ -303,6 +380,7 @@ export const uploadSubmissionDocument = async (req, res, next) => {
     const submission = submissionRows[0];
 
     if (req.user.role === 'mahasiswa' && submission.student_id !== userId) {
+      removeUploadedFile(req.file);
       return res.status(403).json({
         success: false,
         message: 'Akses ditolak: Anda tidak memiliki izin mengunggah dokumen untuk pengajuan ini',
@@ -350,6 +428,7 @@ export const uploadSubmissionDocument = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Upload submission document error:', error.message);
+    removeUploadedFile(req.file);
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
@@ -366,7 +445,7 @@ export const downloadSubmissionDocument = async (req, res) => {
     const { role, id: userId } = req.user;
 
     const [submissionRows] = await pool.query(
-      'SELECT id, student_id FROM submissions WHERE id = ?',
+      'SELECT id, student_id, reviewer_id FROM submissions WHERE id = ?',
       [id]
     );
 
@@ -381,6 +460,13 @@ export const downloadSubmissionDocument = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'Akses ditolak: Anda tidak memiliki izin mengunduh berkas ini',
+      });
+    }
+
+    if (role === 'dosen' && submissionRows[0].reviewer_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak: pengajuan ini tidak ditugaskan kepada Anda',
       });
     }
 
@@ -423,6 +509,17 @@ export const downloadSubmissionDocument = async (req, res) => {
     });
   }
 };
+
+function removeUploadedFile(file) {
+  if (!file || !file.path) {
+    return;
+  }
+  try {
+    fs.unlinkSync(file.path);
+  } catch {
+    // berkas mungkin sudah tidak ada; abaikan
+  }
+}
 
 function pathRelative(filePath) {
   try {
